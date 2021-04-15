@@ -1,0 +1,241 @@
+//Program do testowania jakości powietrza za pomoca czujnika DSM501
+//Podłaczone są dodatkowo: wyświetlacz LC, diody
+ 
+ 
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(2, 3, 4, 5, 6, 7);
+
+int pin2 = 11;
+int pin1 = 10;
+unsigned long duration1;
+unsigned long duration2;
+
+unsigned long temp_time;
+
+unsigned long starttime;
+unsigned long sampletime_ms = 30000;//sampe 1000=1s ;
+unsigned long lowpulseoccupancy1 = 0;
+unsigned long lowpulseoccupancy2 = 0;
+float ratio1 = 0;
+float ratio2 = 0;
+float concentration1 = 0;
+float concentration2 = 0;
+float Natezenie1 = 0;
+float Natezenie2 = 0;
+float AvgContr1 = 0;
+float AvgContr2 = 0;
+float Licznik = 0;
+float WartoscMniej = 0;
+int wLed = A1;
+int gLed = A2;
+int yLed = A3;
+int rLed = A4;
+int bLed = A5;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(10,INPUT);
+  pinMode(11,INPUT);
+  pinMode(wLed,OUTPUT);
+  pinMode(gLed,OUTPUT);
+  pinMode(yLed,OUTPUT);
+  pinMode(rLed,OUTPUT);
+  pinMode(bLed,OUTPUT);
+  starttime = millis();//pomiar aktualnego czasu;
+  lcd.begin(16, 2);
+  //Komunikat startowy
+  lcd.setCursor(0, 0);
+  lcd.print("Uruchamianie...");
+}
+
+void loop() {
+  //Obliczenia
+  duration1 = pulseIn(pin1, LOW);
+  duration2 = pulseIn(pin2, LOW);
+  Serial.print(duration1);
+  Serial.print("<-->");
+  Serial.println(duration2);
+  lowpulseoccupancy1 = lowpulseoccupancy1+duration1;
+  lowpulseoccupancy2 = lowpulseoccupancy2+duration2;
+
+
+  //Wyświetlanie wyników co 1s
+  if ((millis()-temp_time) > 1000)//if the sampel time == 1s
+  {
+    temp_time = millis();
+    Licznik = Licznik + 1;
+    ratio1 = lowpulseoccupancy1/(sampletime_ms*10.0);  // Integer percentage 0=>100
+    Natezenie1 = 1.1*pow(ratio1,3)-3.8*pow(ratio1,2)+520*ratio1+0.62; // using spec sheet curve
+  
+    ratio2 = lowpulseoccupancy2/(sampletime_ms*10.0);  // Integer percentage 0=>100
+    Natezenie2 = 1.1*pow(ratio2,3)-3.8*pow(ratio2,2)+520*ratio2+0.62; // 
+
+
+    //Proba uśredniania
+    AvgContr1 = Natezenie1;
+    if (AvgContr1 < concentration1)//jesli chwilowe natezenie mniejsze niz srednie to zmniejszamy
+    {
+      WartoscMniej = (concentration1 - Natezenie1)/(30 - Licznik);//Wyliczam co ile mniej zmniejszać
+      if (concentration1 > 6){
+        AvgContr1 = concentration1 - WartoscMniej;
+        concentration1 = AvgContr1;     
+      }   
+    }
+
+    //Czyszczenie LCD
+    lcd.setCursor (0, 0);
+    for (int i = 0; i < 16; ++i)
+    {
+     lcd.write(' ');
+    }
+    //Wyświetlanie LCD
+//    lcd.setCursor(0, 0);
+//    lcd.print(AvgContr1,2);
+//    lcd.setCursor(9, 0);
+//    lcd.print(Natezenie1,2);
+    lcd.setCursor(0, 0);
+    lcd.print("PM10 ");
+    lcd.setCursor(6, 0);
+    lcd.print(AvgContr1,3);
+    
+    //Wyswietlanie Serial Testy
+    Serial.print(Licznik);
+    Serial.print(" Chw1 = ");
+    Serial.print(Natezenie1);
+    Serial.print(" pcs/0.01cf  -  ");
+  
+    Serial.print("Cont = ");
+    Serial.print(concentration1);
+    Serial.print(" pcs/0.01cf  -  ");
+
+    Serial.print("Avg1 = ");
+    Serial.print(AvgContr1);
+    Serial.print(" ");
+
+    Serial.print("Wartosc = ");
+    Serial.print(WartoscMniej);
+    Serial.println(" ");
+  }
+
+
+  //Wyświetlanie wyników co okreslony czas (zalecane uśrednianie z 30 sekund)
+  if ((millis()-starttime) > sampletime_ms)//if the sampel time == 30s
+  {
+    ratio1 = lowpulseoccupancy1/(sampletime_ms*10.0);  // Integer percentage 0=>100
+    concentration1 = 1.1*pow(ratio1,3)-3.8*pow(ratio1,2)+520*ratio1+0.62; // using spec sheet curve
+  
+    ratio2 = lowpulseoccupancy2/(sampletime_ms*10.0);  // Integer percentage 0=>100
+    concentration2 = 1.1*pow(ratio2,3)-3.8*pow(ratio2,2)+520*ratio2+0.62; // 
+ 
+    //Czyszczenie LCD
+    lcd.setCursor (0, 0);
+    for (int i = 0; i < 16; ++i)
+    {
+     lcd.write(' ');
+    }
+    //Wyświetlanie
+//    lcd.setCursor(0, 0);
+//    lcd.print(concentration1,2);
+//    lcd.setCursor(9, 0);
+//    lcd.print(concentration2,2);
+    lcd.setCursor(0, 0);
+    lcd.print("PM10 ");
+    lcd.setCursor(6, 0);
+    lcd.print(concentration1,3);
+       
+    Serial.print("concentration1 = ");
+    Serial.print(concentration1);
+    Serial.print(" pcs/0.01cf  -  ");
+  
+    Serial.print("concentration2 = ");
+    Serial.print(concentration2);
+    Serial.print(" pcs/0.01cf  -  ");
+
+    Serial.print("ratio1 = ");
+    Serial.print(ratio1);
+    Serial.println(" % ");
+  
+      
+    if (concentration1 < 500) {//1000
+       lcd.setCursor (0, 1);
+       for (int i = 0; i < 16; ++i)
+       {
+         lcd.write(' ');
+       }
+       lcd.setCursor(4, 1);
+       lcd.print("CZYSTO");
+       digitalWrite(wLed, HIGH);
+       digitalWrite(gLed, LOW);
+       digitalWrite(yLed, LOW);
+       digitalWrite(rLed, LOW);
+       digitalWrite(bLed, LOW);
+    }
+    
+    if (concentration1 >= 500 && concentration1 < 1000) {//1000 - 10000
+       lcd.setCursor (0, 1);
+       for (int i = 0; i < 16; ++i)
+       {
+          lcd.write(' ');
+       }     
+       lcd.setCursor(4, 1);
+       lcd.print("DOBRZE");     
+       digitalWrite(wLed, LOW);
+       digitalWrite(gLed, HIGH);
+       digitalWrite(yLed, LOW);
+       digitalWrite(rLed, LOW);
+       digitalWrite(bLed, LOW);
+    }
+      
+    if (concentration1 >= 1000 && concentration1 < 2000) {//10000 - 20000
+  
+       lcd.setCursor (0, 1);
+       for (int i = 0; i < 16; ++i)
+       {
+         lcd.write(' ');
+       }    
+       lcd.setCursor(1, 1);
+       lcd.print("AKCEPTOWALNIE");
+       digitalWrite(wLed, LOW);
+       digitalWrite(gLed, LOW);
+       digitalWrite(yLed, HIGH);
+       digitalWrite(rLed, LOW);
+       digitalWrite(bLed, LOW);
+    }
+      
+    if (concentration1 >= 2000 && concentration1 < 50000) {//20000 - 50000
+       lcd.setCursor (0, 1);
+       for (int i = 0; i < 16; ++i)
+       {
+          lcd.write(' ');
+       }   
+       lcd.setCursor(0, 1);
+       lcd.print("ZANIECZYSZCZENIE");
+       digitalWrite(wLed, LOW);
+       digitalWrite(gLed, LOW);
+       digitalWrite(yLed, LOW);
+       digitalWrite(rLed, HIGH);
+       digitalWrite(bLed, LOW);
+    }
+    
+    if (concentration1 >= 50000 ) {
+        lcd.setCursor (0, 1);
+        for (int i = 0; i < 16; ++i)
+        {
+          lcd.write(' ');
+        } 
+        lcd.setCursor(4, 1);
+        lcd.print("HAZARD");
+        digitalWrite(wLed, LOW);
+        digitalWrite(gLed, LOW);
+        digitalWrite(yLed, LOW);
+        digitalWrite(rLed, LOW);
+        digitalWrite(bLed, HIGH);
+    } 
+
+    //Zerowanie próbek do kolejnego pomiaru
+    lowpulseoccupancy1 = 0;
+    lowpulseoccupancy2 = 0;
+    starttime = millis();
+    Licznik = 0;
+  }
+}
